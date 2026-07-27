@@ -8,7 +8,6 @@ IPEndPoint endpoint = new(address, 6379);
 
 using TcpListener listener = new(endpoint);
 
-var buffer = new byte[4096];
 CancellationTokenSource tokenSrc = new();
 
 listener.Start();
@@ -28,7 +27,7 @@ try
         while (true)
         {
             Reader reader = new(stream);
-            var value = await reader.Read();
+            var value = await reader.Read(tokenSrc.Token);
 
             if (value.Array?.Length > 0)
             {
@@ -38,7 +37,7 @@ try
                 }
             }
 
-            await stream.WriteAsync(Encoding.ASCII.GetBytes("+OK\r\n").AsMemory());
+            await stream.WriteAsync(Encoding.ASCII.GetBytes("+OK\r\n").AsMemory(), tokenSrc.Token);
         }
     }
 }
@@ -123,7 +122,7 @@ public class Reader(Stream stream)
         return number;
     }
 
-    public async Task<Value> ReadArray()
+    public async Task<Value> ReadArray(CancellationToken token)
     {
         Value value = new()
         {
@@ -135,7 +134,7 @@ public class Reader(Stream stream)
 
         for (int i = 0; i < length; i++)
         {
-            var v = await Read();
+            var v = await Read(token);
             values[i] = v;
         }
 
@@ -144,7 +143,7 @@ public class Reader(Stream stream)
         return value;
     }
 
-    public async Task<Value> ReadBulk()
+    public async Task<Value> ReadBulk(CancellationToken token)
     {
         Value value = new()
         {
@@ -154,22 +153,22 @@ public class Reader(Stream stream)
         var length = ReadInt();
         var bytes = new byte[length];
 
-        await stream.ReadExactlyAsync(bytes.AsMemory());
-        await stream.ReadExactlyAsync(new byte[2].AsMemory()); // Read \r\n
+        await stream.ReadExactlyAsync(bytes.AsMemory(), token);
+        await stream.ReadExactlyAsync(new byte[2].AsMemory(), token); // Read \r\n
 
         value.String = Encoding.ASCII.GetString(bytes);
 
         return value;
     }
 
-    public Task<Value> Read()
+    public Task<Value> Read(CancellationToken token)
     {
         var valueType = stream.ReadByte();
 
         return valueType switch
         {
-            RespTypes.Array => ReadArray(),
-            RespTypes.Bulk => ReadBulk(),
+            RespTypes.Array => ReadArray(token),
+            RespTypes.Bulk => ReadBulk(token),
             _ => Task.FromResult(new Value())
         };
     }
