@@ -1,10 +1,17 @@
 ﻿using System.Net;
 using System.Net.Sockets;
-using System.Text;
+using Sharpis.Resp;
+
+short port = 6379;
+
+if (args.Length == 1 && !short.TryParse(args[0], out port))
+{
+    Console.WriteLine("Invalid port");
+    return;
+}
 
 IPAddress address = new([127, 0, 0, 1]);
-// Add custom port binding
-IPEndPoint endpoint = new(address, 6379);
+IPEndPoint endpoint = new(address, port);
 
 using TcpListener listener = new(endpoint);
 
@@ -22,23 +29,77 @@ try
     using NetworkStream stream = client.GetStream();
     using BufferedStream bufferedStream = new(stream);
 
+    using AppendOnlyFile appendOnlyFile = new();
+
+    await appendOnlyFile.ReadAsync(async value =>
+    {
+        var command = value.Array[0].Bulk;
+        var args = value.Array[1..];
+
+        if (string.IsNullOrEmpty(command))
+        {
+            Console.WriteLine("invalid command");
+            return;
+        }
+
+        var isHandlerFound = Handler.Handlers.TryGetValue(command, out var handler);
+        if (!isHandlerFound)
+        {
+            Console.WriteLine("invalid command");
+            return;
+        }
+
+        handler!(args);
+    }, tokenSrc.Token);
+
+    _ = appendOnlyFile.SyncAsync(tokenSrc.Token);
+
+    Reader reader = new(bufferedStream);
+    Writer writer = new(bufferedStream);
+
     while (true)
     {
-        while (true)
+        var value = await reader.ReadAsync(tokenSrc.Token);
+
+        if (value.Type != Sharpis.Resp.ValueType.Array)
         {
-            Reader reader = new(stream);
-            var value = await reader.Read(tokenSrc.Token);
-
-            if (value.Array?.Length > 0)
-            {
-                foreach (var v in value.Array)
-                {
-                    Console.WriteLine(v.String);
-                }
-            }
-
-            await stream.WriteAsync(Encoding.ASCII.GetBytes("+OK\r\n").AsMemory(), tokenSrc.Token);
+            Console.WriteLine("invalid request, expected array");
+            // await writer.WriteAsync(new() { Type = RespType.String, String = string.Empty }, tokenSrc.Token);
+            continue;
         }
+
+        if (value.Array.Length == 0)
+        {
+            Console.WriteLine("invalid request, array length should be > 0");
+            // await writer.WriteAsync(new() { Type = RespType.String, String = string.Empty }, tokenSrc.Token);
+            continue;
+        }
+
+        var command = value.Array[0].Bulk;
+        if (string.IsNullOrEmpty(command))
+        {
+            Console.WriteLine("invalid command");
+            await writer.WriteAsync(new() { Type = Sharpis.Resp.ValueType.String, String = string.Empty }, tokenSrc.Token);
+            continue;
+        }
+
+        var arguments = value.Array[1..];
+
+        var isHandlerFound = Handler.Handlers.TryGetValue(command, out var handler);
+        if (!isHandlerFound)
+        {
+            Console.WriteLine("invalid command");
+            await writer.WriteAsync(new() { Type = Sharpis.Resp.ValueType.String, String = string.Empty }, tokenSrc.Token);
+            continue;
+        }
+
+        if (command == "set" || command == "hset")
+        {
+            await appendOnlyFile.WriteAsync(value, tokenSrc.Token);
+        }
+
+        var result = handler!(arguments);
+        await writer.WriteAsync(result, tokenSrc.Token);
     }
 }
 catch (Exception ex)
@@ -48,128 +109,4 @@ catch (Exception ex)
 finally
 {
     listener.Stop();
-}
-
-public static class RespTypes
-{
-    public const char Number = ':';
-    public const char String = '+';
-    public const char Error = '-';
-    public const char Bulk = '$';
-    public const char Array = '*';
-}
-
-public enum RespType
-{
-    String,
-    Bulk,
-    Array
-}
-
-public class Value
-{
-    public RespType Type { get; set; }
-    public string String { get; set; }
-    public int Number { get; set; }
-    public string Bulk { get; set; }
-    public Value[] Array { get; set; }
-}
-
-public class Reader(Stream stream)
-{
-    public async Task<string[]> ReadLines(CancellationToken token)
-    {
-        var buffer = new byte[4096];
-        var bytesRead = await stream.ReadAsync(buffer.AsMemory(), token);
-
-        if (bytesRead > 0)
-        {
-            var data = Encoding.ASCII.GetString(buffer, 0, bytesRead);
-            return data.Split("\r\n");
-        }
-
-        return [];
-    }
-
-    public byte[] ReadLine()
-    {
-        List<byte> line = [];
-
-        while (true)
-        {
-            var b = stream.ReadByte();
-            line.Add((byte)b);
-
-            if (line.Count >= 2 && line[^2] == '\r')
-            {
-                break;
-            }
-        }
-
-        return [.. line];
-    }
-
-    public int ReadInt()
-    {
-        var line = ReadLine();
-        var parseResult = int.TryParse(line, out var number);
-
-        if (!parseResult)
-        {
-            throw new Exception("Failed to parse int");
-        }
-
-        return number;
-    }
-
-    public async Task<Value> ReadArray(CancellationToken token)
-    {
-        Value value = new()
-        {
-            Type = RespType.Array,
-        };
-
-        var length = ReadInt();
-        var values = new Value[length];
-
-        for (int i = 0; i < length; i++)
-        {
-            var v = await Read(token);
-            values[i] = v;
-        }
-
-        value.Array = values;
-
-        return value;
-    }
-
-    public async Task<Value> ReadBulk(CancellationToken token)
-    {
-        Value value = new()
-        {
-            Type = RespType.Bulk
-        };
-
-        var length = ReadInt();
-        var bytes = new byte[length];
-
-        await stream.ReadExactlyAsync(bytes.AsMemory(), token);
-        await stream.ReadExactlyAsync(new byte[2].AsMemory(), token); // Read \r\n
-
-        value.String = Encoding.ASCII.GetString(bytes);
-
-        return value;
-    }
-
-    public Task<Value> Read(CancellationToken token)
-    {
-        var valueType = stream.ReadByte();
-
-        return valueType switch
-        {
-            RespTypes.Array => ReadArray(token),
-            RespTypes.Bulk => ReadBulk(token),
-            _ => Task.FromResult(new Value())
-        };
-    }
 }
