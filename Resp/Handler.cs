@@ -35,7 +35,7 @@ public class Handler
         return value;
     }
 
-    public static Value Set(Value[] args)
+    private static Value Set(Value[] args)
     {
         if (args.Length != 2)
         {
@@ -58,7 +58,7 @@ public class Handler
         };
     }
 
-    public static Value Get(Value[] args)
+    private static Value Get(Value[] args)
     {
         if (args.Length != 1)
         {
@@ -87,7 +87,7 @@ public class Handler
         };
     }
 
-    public static Value Hset(Value[] args)
+    private static Value Hset(Value[] args)
     {
         if (args.Length != 3)
         {
@@ -156,7 +156,7 @@ public class Handler
         };
     }
 
-    public static Value HgetAll(Value[] args)
+    private static Value HgetAll(Value[] args)
     {
         if (args.Length != 1)
         {
