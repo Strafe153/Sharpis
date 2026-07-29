@@ -4,21 +4,19 @@ namespace Sharpis.Resp;
 
 public class Reader(Stream stream)
 {
-    public async Task<string[]> ReadLines(CancellationToken token)
+    public Task<Value> ReadAsync(CancellationToken token)
     {
-        var buffer = new byte[4096];
-        var bytesRead = await stream.ReadAsync(buffer.AsMemory(), token);
+        var valueType = stream.ReadByte();
 
-        if (bytesRead > 0)
+        return valueType switch
         {
-            var data = Encoding.ASCII.GetString(buffer, 0, bytesRead);
-            return data.Split("\r\n");
-        }
-
-        return [];
+            TypeIdentifiers.Array => ReadArrayAsync(token),
+            TypeIdentifiers.Bulk => ReadBulkAsync(token),
+            _ => Task.FromResult(new Value())
+        };
     }
 
-    public byte[] ReadLine()
+    private byte[] ReadLine()
     {
         List<byte> line = [];
 
@@ -36,7 +34,7 @@ public class Reader(Stream stream)
         return [.. line];
     }
 
-    public int ReadInt()
+    private int ReadInt()
     {
         var line = ReadLine();
         var parseResult = int.TryParse(line, out var number);
@@ -49,7 +47,7 @@ public class Reader(Stream stream)
         return number;
     }
 
-    public async Task<Value> ReadArray(CancellationToken token)
+    private async Task<Value> ReadArrayAsync(CancellationToken token)
     {
         Value value = new()
         {
@@ -70,7 +68,7 @@ public class Reader(Stream stream)
         return value;
     }
 
-    public async Task<Value> ReadBulk(CancellationToken token)
+    private async Task<Value> ReadBulkAsync(CancellationToken token)
     {
         Value value = new()
         {
@@ -86,17 +84,5 @@ public class Reader(Stream stream)
         value.Bulk = Encoding.ASCII.GetString(bytes);
 
         return value;
-    }
-
-    public Task<Value> ReadAsync(CancellationToken token)
-    {
-        var valueType = stream.ReadByte();
-
-        return valueType switch
-        {
-            TypeIdentifiers.Array => ReadArray(token),
-            TypeIdentifiers.Bulk => ReadBulk(token),
-            _ => Task.FromResult(new Value())
-        };
     }
 }
