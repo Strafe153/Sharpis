@@ -56,21 +56,25 @@ try
     Reader reader = new(bufferedStream);
     Writer writer = new(bufferedStream);
 
-    while (true)
+    while (!tokenSrc.IsCancellationRequested)
     {
         var value = await reader.ReadAsync(tokenSrc.Token);
+
+        if (value.Type == Sharpis.Resp.ValueType.String && string.IsNullOrEmpty(value.String))
+        {
+            tokenSrc.Cancel();
+            continue;
+        }
 
         if (value.Type != Sharpis.Resp.ValueType.Array)
         {
             Console.WriteLine("invalid request, expected array");
-            // await writer.WriteAsync(new() { Type = RespType.String, String = string.Empty }, tokenSrc.Token);
             continue;
         }
 
         if (value.Array.Length == 0)
         {
             Console.WriteLine("invalid request, array length should be > 0");
-            // await writer.WriteAsync(new() { Type = RespType.String, String = string.Empty }, tokenSrc.Token);
             continue;
         }
 
