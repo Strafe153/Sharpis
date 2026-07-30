@@ -82,7 +82,7 @@ public class Handler
         return new()
         {
             Type = ValueType.String,
-            String = value!
+            String = value
         };
     }
 
@@ -101,12 +101,12 @@ public class Handler
         var key = args[1].Bulk;
         var value = args[2].Bulk;
 
-        if (!_hSets.TryGetValue(groupKey, out var group))
+        if (!_hSets.TryGetValue(groupKey, out _))
         {
             _hSets[groupKey] = [];
         }
 
-        group![key] = value;
+        _hSets[groupKey][key] = value;
 
         return new()
         {
@@ -148,7 +148,7 @@ public class Handler
         return new()
         {
             Type = ValueType.String,
-            String = value!
+            String = value
         };
     }
 
