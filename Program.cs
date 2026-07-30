@@ -42,8 +42,7 @@ try
             return;
         }
 
-        var isHandlerFound = Handler.Handlers.TryGetValue(command, out var handler);
-        if (!isHandlerFound)
+        if (!Handler.Handlers.TryGetValue(command, out var handler))
         {
             Console.WriteLine("invalid command");
             return;
@@ -85,8 +84,7 @@ try
 
         var arguments = value.Array[1..];
 
-        var isHandlerFound = Handler.Handlers.TryGetValue(command, out var handler);
-        if (!isHandlerFound)
+        if (!Handler.Handlers.TryGetValue(command, out var handler))
         {
             Console.WriteLine("invalid command");
             await writer.WriteAsync(new() { Type = Sharpis.Resp.ValueType.String, String = string.Empty }, tokenSrc.Token);

@@ -71,8 +71,7 @@ public class Handler
 
         var key = args[0].Bulk;
 
-        var hasValue = _sets.TryGetValue(key, out var value);
-        if (!hasValue)
+        if (!_sets.TryGetValue(key, out var value))
         {
             return new()
             {
@@ -98,17 +97,16 @@ public class Handler
             };
         }
 
-        var group = args[0].Bulk;
+        var groupKey = args[0].Bulk;
         var key = args[1].Bulk;
         var value = args[2].Bulk;
 
-        var hasGroup = _hSets.TryGetValue(group, out var g);
-        if (!hasGroup)
+        if (!_hSets.TryGetValue(groupKey, out var group))
         {
-            _hSets[group] = [];
+            _hSets[groupKey] = [];
         }
 
-        _hSets[group][key] = value;
+        group![key] = value;
 
         return new()
         {
@@ -128,11 +126,10 @@ public class Handler
             };
         }
 
-        var group = args[0].Bulk;
+        var groupKey = args[0].Bulk;
         var key = args[1].Bulk;
 
-        var hasGroup = _hSets.TryGetValue(group, out var _);
-        if (!hasGroup)
+        if (!_hSets.TryGetValue(groupKey, out var group))
         {
             return new()
             {
@@ -140,8 +137,7 @@ public class Handler
             };
         }
 
-        var hasKey = _hSets[group].TryGetValue(key, out var value);
-        if (!hasKey)
+        if (!group.TryGetValue(key, out var value))
         {
             return new()
             {
@@ -167,9 +163,9 @@ public class Handler
             };
         }
 
-        var group = args[0].Bulk;
+        var groupKey = args[0].Bulk;
 
-        if (!_hSets.TryGetValue(group, out var g))
+        if (!_hSets.TryGetValue(groupKey, out var group))
         {
             return new()
             {
@@ -180,12 +176,12 @@ public class Handler
         Value value = new()
         {
             Type = ValueType.Array,
-            Array = new Value[g!.Count]
+            Array = new Value[group!.Count]
         };
 
         int i = 0;
 
-        foreach (var v in g.Values)
+        foreach (var v in group.Values)
         {
             value.Array[i++] = new()
             {
