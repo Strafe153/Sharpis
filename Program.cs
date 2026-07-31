@@ -86,7 +86,7 @@ try
                 continue;
             }
 
-            if (bulk.Value == "set" || bulk.Value == "hset")
+            if (Commands.IsModification(bulk.Value))
             {
                 await appendOnlyFile.WriteAsync(value, tokenSrc.Token);
             }

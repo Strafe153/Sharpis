@@ -10,12 +10,12 @@ public static class Handler
     private static readonly Dictionary<string, Func<Value[], Value>> _handlers =
         new(StringComparer.OrdinalIgnoreCase)
         {
-            { "ping", Pong },
-            { "set", Set },
-            { "get", Get },
-            { "hset", Hset },
-            { "hget", Hget },
-            { "hgetall", HgetAll }
+            { Commands.Ping, Pong },
+            { Commands.Set, Set },
+            { Commands.Get, Get },
+            { Commands.HSet, Hset },
+            { Commands.HGet, Hget },
+            { Commands.HGetAll, HgetAll }
         };
 
     public static Dictionary<string, Func<Value[], Value>> Handlers => _handlers;
