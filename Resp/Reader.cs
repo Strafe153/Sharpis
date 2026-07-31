@@ -1,18 +1,19 @@
 using System.Text;
+using Sharpis.Resp.Values;
 
 namespace Sharpis.Resp;
 
-public class Reader(Stream stream)
+public sealed class Reader(Stream stream)
 {
-    public Task<Value> ReadAsync(CancellationToken token)
+    public async Task<Value> ReadAsync(CancellationToken token)
     {
         var valueType = stream.ReadByte();
 
         return valueType switch
         {
-            TypeIdentifiers.Array => ReadArrayAsync(token),
-            TypeIdentifiers.Bulk => ReadBulkAsync(token),
-            _ => Task.FromResult(new Value())
+            TypeIdentifiers.Array => await ReadArrayAsync(token),
+            TypeIdentifiers.Bulk => await ReadBulkAsync(token),
+            _ => new NullValue()
         };
     }
 
@@ -49,40 +50,33 @@ public class Reader(Stream stream)
 
     private async Task<Value> ReadArrayAsync(CancellationToken token)
     {
-        Value value = new()
-        {
-            Type = ValueType.Array,
-        };
-
         var length = ReadInt();
-        var values = new Value[length];
+
+        ArrayValue value = new()
+        {
+            Value = new Value[length]
+        };
 
         for (int i = 0; i < length; i++)
         {
             var v = await ReadAsync(token);
-            values[i] = v;
+            value.Value[i] = v;
         }
-
-        value.Array = values;
 
         return value;
     }
 
     private async Task<Value> ReadBulkAsync(CancellationToken token)
     {
-        Value value = new()
-        {
-            Type = ValueType.Bulk
-        };
-
         var length = ReadInt();
         var bytes = new byte[length];
 
         await stream.ReadExactlyAsync(bytes, token);
         await stream.ReadExactlyAsync(new byte[2], token); // Read \r\n
 
-        value.Bulk = Encoding.ASCII.GetString(bytes);
-
-        return value;
+        return new BulkValue
+        {
+            Value = Encoding.ASCII.GetString(bytes)
+        };
     }
 }

@@ -1,6 +1,8 @@
+using Sharpis.Resp.Values;
+
 namespace Sharpis.Resp;
 
-public class Handler
+public static class Handler
 {
     private static readonly Dictionary<string, string> _sets = [];
     private static readonly Dictionary<string, Dictionary<string, string>> _hSets = [];
@@ -20,41 +22,50 @@ public class Handler
 
     private static Value Pong(Value[] args)
     {
-        Value value = new()
-        {
-            Type = ValueType.String
-        };
-
         if (args.Length == 0)
         {
-            value.String = "PONG";
-            return value;
+            return new StringValue
+            {
+                Value = "PONG"
+            };
         }
 
-        value.String = args[0].Bulk;
-        return value;
+        var (bulkArgs, error) = VerifyArguments(args);
+        if (error is not null)
+        {
+            return error;
+        }
+
+        return new StringValue
+        {
+            Value = bulkArgs[0].Value
+        };
     }
 
     private static Value Set(Value[] args)
     {
         if (args.Length != 2)
         {
-            return new()
+            return new ErrorValue
             {
-                Type = ValueType.Error,
-                String = "Wrong number of arguments for the \"set\" command."
+                Value = "Wrong number of arguments for the \"set\" command."
             };
         }
 
-        var key = args[0].Bulk;
-        var value = args[1].Bulk;
+        var (bulkArgs, error) = VerifyArguments(args);
+        if (error is not null)
+        {
+            return error;
+        }
+
+        var key = bulkArgs[0].Value;
+        var value = bulkArgs[1].Value;
 
         _sets[key] = value;
 
-        return new()
+        return new StringValue
         {
-            Type = ValueType.String,
-            String = "OK"
+            Value = "OK"
         };
     }
 
@@ -62,27 +73,26 @@ public class Handler
     {
         if (args.Length != 1)
         {
-            return new()
+            return new ErrorValue
             {
-                Type = ValueType.Error,
-                String = "Wrong number of arguments for the \"get\" command."
+                Value = "Wrong number of arguments for the \"get\" command."
             };
         }
 
-        var key = args[0].Bulk;
-
-        if (!_sets.TryGetValue(key, out var value))
+        var (bulkArgs, error) = VerifyArguments(args);
+        if (error is not null)
         {
-            return new()
-            {
-                Type = ValueType.Null,
-            };
+            return error;
         }
 
-        return new()
+        if (!_sets.TryGetValue(bulkArgs[0].Value, out var value))
         {
-            Type = ValueType.String,
-            String = value
+            return new NullValue();
+        }
+
+        return new StringValue
+        {
+            Value = value
         };
     }
 
@@ -90,16 +100,21 @@ public class Handler
     {
         if (args.Length != 3)
         {
-            return new()
+            return new ErrorValue
             {
-                Type = ValueType.Error,
-                String = "Wrong number of arguments for the \"hset\" command."
+                Value = "Wrong number of arguments for the \"hset\" command."
             };
         }
 
-        var groupKey = args[0].Bulk;
-        var key = args[1].Bulk;
-        var value = args[2].Bulk;
+        var (bulkArgs, error) = VerifyArguments(args);
+        if (error is not null)
+        {
+            return error;
+        }
+
+        var groupKey = bulkArgs[0].Value;
+        var key = bulkArgs[1].Value;
+        var value = bulkArgs[2].Value;
 
         if (!_hSets.TryGetValue(groupKey, out _))
         {
@@ -108,10 +123,9 @@ public class Handler
 
         _hSets[groupKey][key] = value;
 
-        return new()
+        return new StringValue
         {
-            Type = ValueType.String,
-            String = "OK"
+            Value = "OK"
         };
     }
 
@@ -119,36 +133,34 @@ public class Handler
     {
         if (args.Length != 2)
         {
-            return new()
+            return new ErrorValue
             {
-                Type = ValueType.Error,
-                String = "Wrong number of arguments for the \"hget\" command."
+                Value = "Wrong number of arguments for the \"hget\" command."
             };
         }
 
-        var groupKey = args[0].Bulk;
-        var key = args[1].Bulk;
+        var (bulkArgs, error) = VerifyArguments(args);
+        if (error is not null)
+        {
+            return error;
+        }
+
+        var groupKey = bulkArgs[0].Value;
+        var key = bulkArgs[1].Value;
 
         if (!_hSets.TryGetValue(groupKey, out var group))
         {
-            return new()
-            {
-                Type = ValueType.Null
-            };
+            return new NullValue();
         }
 
         if (!group.TryGetValue(key, out var value))
         {
-            return new()
-            {
-                Type = ValueType.Null
-            };
+            return new NullValue();
         }
 
-        return new()
+        return new StringValue
         {
-            Type = ValueType.String,
-            String = value
+            Value = value
         };
     }
 
@@ -156,40 +168,60 @@ public class Handler
     {
         if (args.Length != 1)
         {
-            return new()
+            return new ErrorValue
             {
-                Type = ValueType.Error,
-                String = "Wrong number of arguments for the \"hgetall\" command."
+                Value = "Wrong number of arguments for the \"hgetall\" command."
             };
         }
 
-        var groupKey = args[0].Bulk;
-
-        if (!_hSets.TryGetValue(groupKey, out var group))
+        var (bulkArgs, error) = VerifyArguments(args);
+        if (error is not null)
         {
-            return new()
-            {
-                Type = ValueType.Null
-            };
+            return error;
         }
 
-        Value value = new()
+        if (!_hSets.TryGetValue(bulkArgs[0].Value, out var group))
         {
-            Type = ValueType.Array,
-            Array = new Value[group!.Count]
+            return new NullValue();
+        }
+
+        ArrayValue value = new()
+        {
+            Value = new Value[group.Count]
         };
 
         int i = 0;
 
         foreach (var v in group.Values)
         {
-            value.Array[i++] = new()
+            value.Value[i++] = new StringValue
             {
-                Type = ValueType.String,
-                String = v
+                Value = v
             };
         }
 
         return value;
+    }
+
+    private static (BulkValue[], ErrorValue?) VerifyArguments(Value[] args)
+    {
+        var bulkArgs = new BulkValue[args.Length];
+
+        for (int i = 0; i < args.Length; i++)
+        {
+            if (args[i] is not BulkValue bulkArg)
+            {
+                ErrorValue error = new()
+                {
+                    Value = "Bulk value expected."
+                };
+
+                return ([], error);
+            }
+
+            bulkArgs[i] = bulkArg;
+        }
+
+        return (bulkArgs, null);
     }
 }

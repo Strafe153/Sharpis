@@ -1,6 +1,8 @@
+using Sharpis.Resp.Values;
+
 namespace Sharpis.Resp;
 
-public class AppendOnlyFile : IDisposable
+public sealed class AppendOnlyFile : IDisposable
 {
     private readonly FileStream _file = File.Open(
         Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "sharpis.aof"),
@@ -59,7 +61,7 @@ public class AppendOnlyFile : IDisposable
         {
             var value = await reader.ReadAsync(token);
 
-            if (value.Type == ValueType.String && string.IsNullOrEmpty(value.String))
+            if (value is NullValue)
             {
                 break;
             }
