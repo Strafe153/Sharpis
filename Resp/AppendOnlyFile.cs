@@ -2,7 +2,7 @@ using Sharpis.Resp.Values;
 
 namespace Sharpis.Resp;
 
-public sealed class AppendOnlyFile : IDisposable
+public sealed class AppendOnlyFile : IAsyncDisposable
 {
     private readonly FileStream _file = File.Open(
         Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "sharpis.aof"),
@@ -11,10 +11,10 @@ public sealed class AppendOnlyFile : IDisposable
 
     private readonly SemaphoreSlim _semaphore = new(1, 1);
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
-        _file.Flush();
-        _file.Dispose();
+        await _file.FlushAsync();
+        await _file.DisposeAsync();
     }
 
     public async Task SyncAsync(CancellationToken token)
@@ -49,15 +49,11 @@ public sealed class AppendOnlyFile : IDisposable
         }
     }
 
-    // If i were to add a support for multiple clients work with the app simultaneously
-    // then adding a semaphore wait around reading potentially makes sense too
-    // however at that point I think none of them would be able to read the whole file
-    // thus a filestream on the AOF for every client seems like the way to go
     public async Task ReadAsync(Action<Value> action, CancellationToken token)
     {
         Reader reader = new(_file);
 
-        while (true)
+        while (!token.IsCancellationRequested)
         {
             var value = await reader.ReadAsync(token);
 

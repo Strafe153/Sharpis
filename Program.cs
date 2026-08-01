@@ -3,104 +3,137 @@ using System.Net.Sockets;
 using Sharpis.Resp;
 using Sharpis.Resp.Values;
 
-ushort port = 6379;
+using TcpListener listener = CreateListener();
+using CancellationTokenSource tokenSrc = new();
 
-if (args.Length == 1 && !ushort.TryParse(args[0], out port))
+Console.CancelKeyPress += (_, e) =>
 {
-    Console.WriteLine("Invalid port");
-    return;
-}
-
-IPAddress address = new([127, 0, 0, 1]);
-IPEndPoint endpoint = new(address, port);
-
-using TcpListener listener = new(endpoint);
-
-CancellationTokenSource tokenSrc = new();
+    e.Cancel = true;
+    tokenSrc.Cancel();
+};
 
 try
 {
-    using AppendOnlyFile appendOnlyFile = new();
+    await using AppendOnlyFile aof = new();
+    await ReadAofAsync(aof, tokenSrc.Token);
 
-    await appendOnlyFile.ReadAsync(async value =>
-    {
-        if (value is ArrayValue arr)
-        {
-            if (arr.Value[0] is BulkValue bulk)
-            {
-                if (string.IsNullOrEmpty(bulk.Value)
-                    || !Handler.Handlers.TryGetValue(bulk.Value, out var handler))
-                {
-                    Console.WriteLine("Invalid command");
-                    return;
-                }
-
-                handler(arr.Value[1..]);
-            }
-        }
-    }, tokenSrc.Token);
-
+    _ = aof.SyncAsync(tokenSrc.Token);
     listener.Start();
-
-    // for now do this, but in order to try several clients simultaneously, later try moving this inside the while (true) loop
-    // and after that add anoter inner while (true) loop around if (bufferedStream.CanRead), though offload that into a separate
-    // task method and move buffer initialization in there in order to avoid any issues
-    using TcpClient client = await listener.AcceptTcpClientAsync();
-
-    using NetworkStream stream = client.GetStream();
-    using BufferedStream bufferedStream = new(stream);
-
-    _ = appendOnlyFile.SyncAsync(tokenSrc.Token);
-
-    Reader reader = new(bufferedStream);
-    Writer writer = new(bufferedStream);
 
     while (!tokenSrc.IsCancellationRequested)
     {
-        var value = await reader.ReadAsync(tokenSrc.Token);
-        if (value is NullValue)
-        {
-            tokenSrc.Cancel();
-            continue;
-        }
-
-        if (value is not ArrayValue arr)
-        {
-            Console.WriteLine("Invalid request, expected array");
-            continue;
-        }
-
-        if (arr.Value.Length == 0)
-        {
-            Console.WriteLine("Invalid request, array length should be > 0");
-            continue;
-        }
-
-        if (arr.Value[0] is BulkValue bulk)
-        {
-            if (string.IsNullOrEmpty(bulk.Value)
-                || !Handler.Handlers.TryGetValue(bulk.Value, out var handler))
-            {
-                Console.WriteLine("Invalid command");
-                await writer.WriteAsync(new StringValue() { Value = string.Empty }, tokenSrc.Token);
-                continue;
-            }
-
-            if (Commands.IsModification(bulk.Value))
-            {
-                await appendOnlyFile.WriteAsync(value, tokenSrc.Token);
-            }
-
-            var result = handler(arr.Value[1..]);
-            await writer.WriteAsync(result, tokenSrc.Token);
-        }
+        var client = await listener.AcceptTcpClientAsync(tokenSrc.Token);
+        _ = HandleClient(client, aof, tokenSrc.Token);
     }
 }
-catch (Exception ex)
+catch (Exception ex) when (ex is OperationCanceledException or TaskCanceledException)
 {
-    Console.WriteLine(ex);
+    Console.WriteLine("The server is shutting down");
 }
-finally
+catch (SocketException)
 {
-    listener.Stop();
+    Console.WriteLine("Port is already in use");
+}
+catch
+{
+    Console.WriteLine("Unexpected error");
+}
+
+TcpListener CreateListener()
+{
+    ushort port = 6379;
+
+    if (args.Length == 1 && !ushort.TryParse(args[0], out port))
+    {
+        Console.WriteLine("Invalid port");
+        Environment.Exit(1);
+    }
+
+    IPAddress address = new([127, 0, 0, 1]);
+    IPEndPoint endpoint = new(address, port);
+
+    return new(endpoint);
+}
+
+Task ReadAofAsync(AppendOnlyFile file, CancellationToken token)
+{
+    return file.ReadAsync(async value =>
+    {
+        if (value is not ArrayValue arr || arr.Value.Length == 0)
+        {
+            Console.WriteLine("Invalid request, expected a non-empty array");
+            return;
+        }
+
+        if (arr.Value[0] is not BulkValue bulk
+            || string.IsNullOrEmpty(bulk.Value)
+            || !Handler.Handlers.TryGetValue(bulk.Value, out var handler))
+        {
+            Console.WriteLine("Invalid command");
+            return;
+        }
+
+        handler(arr.Value[1..]);
+    }, token);
+}
+
+async Task HandleClient(TcpClient client, AppendOnlyFile appendOnlyFile, CancellationToken token)
+{
+    try
+    {
+        using (client)
+        {
+            await using NetworkStream stream = client.GetStream();
+            await using BufferedStream bufferedStream = new(stream);
+
+            if (!bufferedStream.CanRead || !bufferedStream.CanWrite)
+            {
+                Console.WriteLine("The stream does not support reading and/or writing");
+                return;
+            }
+
+            Reader reader = new(bufferedStream);
+            Writer writer = new(bufferedStream);
+
+            while (!token.IsCancellationRequested)
+            {
+                var value = await reader.ReadAsync(token);
+                if (value is NullValue)
+                {
+                    break;
+                }
+
+                if (value is not ArrayValue arr || arr.Value.Length == 0)
+                {
+                    Console.WriteLine("Invalid request, expected a non-empty array");
+                    continue;
+                }
+
+                if (arr.Value[0] is not BulkValue bulk
+                    || string.IsNullOrEmpty(bulk.Value)
+                    || !Handler.Handlers.TryGetValue(bulk.Value, out var handler))
+                {
+                    Console.WriteLine("Invalid command");
+                    await writer.WriteAsync(StringValue.Empty, token);
+                    continue;
+                }
+
+                if (Commands.IsModification(bulk.Value))
+                {
+                    await appendOnlyFile.WriteAsync(value, token);
+                }
+
+                var responseValue = handler(arr.Value[1..]);
+                await writer.WriteAsync(responseValue, token);
+            }
+        }
+    }
+    catch (Exception ex) when (ex is OperationCanceledException or TaskCanceledException)
+    {
+        Console.WriteLine("Client connection terminated due to server shutdown.");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine("Client exception: {0}", ex);
+    }
 }

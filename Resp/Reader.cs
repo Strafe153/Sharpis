@@ -7,7 +7,7 @@ public sealed class Reader(Stream stream)
 {
     public async Task<Value> ReadAsync(CancellationToken token)
     {
-        var valueType = stream.ReadByte();
+        var valueType = await ReadByteAsync(token);
 
         return valueType switch
         {
@@ -17,13 +17,36 @@ public sealed class Reader(Stream stream)
         };
     }
 
-    private byte[] ReadLine()
+    // This custom async implementation is needed in order to be able to later on
+    // directly call HandleClient without awaiting it,
+    // since stream.ReadByte() is blocking and otherwise Task.Run() must be used
+    private async Task<int> ReadByteAsync(CancellationToken token)
+    {
+        try
+        {
+            var b = new byte[1];
+            await stream.ReadExactlyAsync(b, token);
+
+            return b[0];
+        }
+        catch (EndOfStreamException)
+        {
+            return -1;
+        }
+    }
+
+    private async Task<byte[]> ReadLine(CancellationToken token)
     {
         List<byte> line = [];
 
         while (true)
         {
-            var b = stream.ReadByte();
+            var b = await ReadByteAsync(token);
+            if (b == -1)
+            {
+                break;
+            }
+
             line.Add((byte)b);
 
             if (line.Count >= 2 && line[^2] == '\r')
@@ -35,9 +58,9 @@ public sealed class Reader(Stream stream)
         return [.. line];
     }
 
-    private int ReadInt()
+    private async Task<int> ReadInt(CancellationToken token)
     {
-        var line = ReadLine();
+        var line = await ReadLine(token);
         var parseResult = int.TryParse(line, out var number);
 
         if (!parseResult)
@@ -50,7 +73,7 @@ public sealed class Reader(Stream stream)
 
     private async Task<Value> ReadArrayAsync(CancellationToken token)
     {
-        var length = ReadInt();
+        var length = await ReadInt(token);
 
         ArrayValue value = new()
         {
@@ -68,7 +91,7 @@ public sealed class Reader(Stream stream)
 
     private async Task<Value> ReadBulkAsync(CancellationToken token)
     {
-        var length = ReadInt();
+        var length = await ReadInt(token);
         var bytes = new byte[length];
 
         await stream.ReadExactlyAsync(bytes, token);
