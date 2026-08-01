@@ -65,7 +65,7 @@ public sealed class Reader(Stream stream)
 
         if (!parseResult)
         {
-            throw new Exception("Failed to parse int");
+            throw new FormatException("Failed to parse integer");
         }
 
         return number;
