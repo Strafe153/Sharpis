@@ -21,6 +21,8 @@ public static class Handler
             { Commands.IncrBy, IncrBy },
             { Commands.Exists, Exists },
             { Commands.HExists, Hexists },
+            { Commands.MGet, Mget },
+            { Commands.MSet, Mset },
         };
 
     public static Dictionary<string, Func<Value[], Value>> Handlers => _handlers;
@@ -102,10 +104,7 @@ public static class Handler
 
             _sets[key] = value;
 
-            return new StringValue
-            {
-                Value = "OK"
-            };
+            return StringValue.Ok;
         }
 
         return Handle(validationFunc, valueFunc, args);
@@ -170,10 +169,7 @@ public static class Handler
 
             _hSets[groupKey][key] = value;
 
-            return new StringValue
-            {
-                Value = "OK"
-            };
+            return StringValue.Ok;
         }
 
         return Handle(validationFunc, valueFunc, args);
@@ -441,6 +437,67 @@ public static class Handler
             {
                 Value = exists
             };
+        }
+
+        return Handle(validationFunc, valueFunc, args);
+    }
+
+    private static Value Mget(Value[] args)
+    {
+        static Value? validationFunc(Value[] args)
+        {
+            if (args.Length < 1)
+            {
+                return new ErrorValue
+                {
+                    Value = "Wrong number of arguments for the \"mget\" command."
+                };
+            }
+
+            return null;
+        }
+
+        static Value valueFunc(BulkValue[] args)
+        {
+            var values = new Value[args.Length];
+
+            for (int i = 0; i < args.Length; i++)
+            {
+                values[i] = Get([args[i]]);
+            }
+
+            return new ArrayValue
+            {
+                Value = values
+            };
+        }
+
+        return Handle(validationFunc, valueFunc, args);
+    }
+
+    private static Value Mset(Value[] args)
+    {
+        static Value? validationFunc(Value[] args)
+        {
+            if (args.Length < 2 || args.Length % 2 == 1)
+            {
+                return new ErrorValue
+                {
+                    Value = "Wrong number of arguments for the \"mset\" command."
+                };
+            }
+
+            return null;
+        }
+
+        static Value valueFunc(BulkValue[] args)
+        {
+            for (int i = 0; i < args.Length; i += 2)
+            {
+                Set([args[i], args[i + 1]]);
+            }
+
+            return StringValue.Ok;
         }
 
         return Handle(validationFunc, valueFunc, args);

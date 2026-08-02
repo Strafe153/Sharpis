@@ -4,12 +4,15 @@ namespace Sharpis.Resp.Values;
 
 public sealed class StringValue : Value
 {
-    private static readonly StringValue _empty = new()
+    public static StringValue Empty { get; } = new()
     {
         Value = string.Empty
     };
 
-    public static StringValue Empty => _empty;
+    public static StringValue Ok { get; } = new()
+    {
+        Value = "OK"
+    };
 
     public required string Value { get; init; }
 

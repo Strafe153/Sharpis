@@ -13,6 +13,8 @@ public struct Commands
     public const string IncrBy = "incrby";
     public const string Exists = "exists";
     public const string HExists = "hexists";
+    public const string MGet = "mget";
+    public const string MSet = "mset";
 
     public static bool IsModification(string key)
     {
