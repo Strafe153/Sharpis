@@ -12,6 +12,8 @@ Small [RESP2](https://redis.io/docs/latest/develop/reference/protocol-spec/)-com
 * INCRBY
 * EXISTS
 * HEXISTS
+* MGET
+* MSET
 
 Sharpis supports concurrent access from multiple clients.
 
