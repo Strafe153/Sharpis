@@ -1,6 +1,17 @@
 # Sharpis
 
-Small [RESP](https://redis.io/docs/latest/develop/reference/protocol-spec/)-compatible data storage. The application implements a subset of some of the most widely used commands, including PING, GET, SET, HGET, HSET, HGETALL. Sharpis supports concurrent access from multiple clients.
+Small [RESP](https://redis.io/docs/latest/develop/reference/protocol-spec/)-compatible data storage. The application implements a subset of some of the most widely used commands, including
+* PING
+* GET
+* SET
+* HGET
+* HSET
+* HGETALL
+* STRLEN
+* INCR
+* INCRBY
+
+Sharpis supports concurrent access from multiple clients.
 
 ## Disclaimer
 
