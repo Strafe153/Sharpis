@@ -15,7 +15,7 @@ Small [RESP2](https://redis.io/docs/latest/develop/reference/protocol-spec/)-com
 * MGET
 * MSET
 
-Sharpis supports concurrent access from multiple clients.
+Sharpis supports concurrent access from multiple clients. Data is stored in an append-only file and is populated on server startup.
 
 ## Disclaimer
 
