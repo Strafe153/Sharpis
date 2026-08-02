@@ -17,7 +17,8 @@ public static class Handler
             { Commands.HGet, Hget },
             { Commands.HGetAll, HgetAll },
             { Commands.StrLen, StrLen },
-            { Commands.Incr, Incr }
+            { Commands.Incr, Incr },
+            { Commands.IncrBy, IncrBy }
         };
 
     public static Dictionary<string, Func<Value[], Value>> Handlers => _handlers;
@@ -242,24 +243,53 @@ public static class Handler
             };
         }
 
+        Value[] incrByArgs = [
+            .. args,
+            new BulkValue
+            {
+                Value = "1"
+            }
+        ];
+
+        return IncrBy(incrByArgs);
+    }
+
+    private static Value IncrBy(Value[] args)
+    {
+        if (args.Length != 2)
+        {
+            return new ErrorValue
+            {
+                Value = "Wrong number of arguments for the \"incrby\" command."
+            };
+        }
+
         var (bulkArgs, error) = VerifyArguments(args);
         if (error is not null)
         {
             return error;
         }
 
-        if (!_sets.TryGetValue(bulkArgs[0].Value, out var value)
-            || !int.TryParse(value, out var current))
+        if (!int.TryParse(bulkArgs[1].Value, out var increment))
         {
-            SetCustom("1");
-
-            return new IntegerValue
+            return new ErrorValue
             {
-                Value = 1
+                Value = "Value is not an integer or is out of range"
             };
         }
 
-        var incremented = current + 1;
+        if (!_sets.TryGetValue(bulkArgs[0].Value, out var value)
+            || !int.TryParse(value, out var current))
+        {
+            SetCustom(increment.ToString());
+
+            return new IntegerValue
+            {
+                Value = increment
+            };
+        }
+
+        var incremented = current + increment;
         SetCustom(incremented.ToString());
 
         return new IntegerValue

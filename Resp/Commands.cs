@@ -10,10 +10,11 @@ public static class Commands
     public const string HGetAll = "hgetall";
     public const string StrLen = "strlen";
     public const string Incr = "incr";
+    public const string IncrBy = "incrby";
 
     public static bool IsModification(string key)
     {
-        string[] commands = [Set, HSet, Incr];
+        string[] commands = [Set, HSet, Incr, IncrBy];
         var isModification = commands.Any(o => string.Equals(key, o, StringComparison.OrdinalIgnoreCase));
 
         return isModification;
