@@ -1,6 +1,6 @@
 # Sharpis
 
-Small [RESP](https://redis.io/docs/latest/develop/reference/protocol-spec/)-compatible data storage. The application implements a subset of some of the most widely used commands, including
+Small [RESP2](https://redis.io/docs/latest/develop/reference/protocol-spec/)-compatible data storage. The application implements a subset of some of the most widely used commands, including
 * PING
 * GET
 * SET
