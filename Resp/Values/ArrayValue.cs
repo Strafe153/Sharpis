@@ -4,6 +4,11 @@ namespace Sharpis.Resp.Values;
 
 public sealed class ArrayValue : Value
 {
+    public static ArrayValue Empty { get; } = new()
+    {
+        Value = []
+    };
+
     public required Value[] Value { get; init; }
 
     public override byte[] Marshal()

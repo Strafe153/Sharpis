@@ -233,7 +233,7 @@ public static class Handler
         {
             if (!_hSets.TryGetValue(args[0].Value, out var group))
             {
-                return new NullValue();
+                return ArrayValue.Empty;
             }
 
             ArrayValue value = new()
