@@ -15,7 +15,9 @@ public static class Handler
             { Commands.Get, Get },
             { Commands.HSet, Hset },
             { Commands.HGet, Hget },
-            { Commands.HGetAll, HgetAll }
+            { Commands.HGetAll, HgetAll },
+            { Commands.StrLen, StrLen },
+            { Commands.Incr, Incr }
         };
 
     public static Dictionary<string, Func<Value[], Value>> Handlers => _handlers;
@@ -201,6 +203,82 @@ public static class Handler
         }
 
         return value;
+    }
+
+    private static Value StrLen(Value[] args)
+    {
+        if (args.Length != 1)
+        {
+            return new ErrorValue
+            {
+                Value = "Wrong number of arguments for the \"strlen\" command."
+            };
+        }
+
+        var (bulkArgs, error) = VerifyArguments(args);
+        if (error is not null)
+        {
+            return error;
+        }
+
+        if (!_sets.TryGetValue(bulkArgs[0].Value, out var value))
+        {
+            return new NullValue();
+        }
+
+        return new IntegerValue
+        {
+            Value = value.Length
+        };
+    }
+
+    private static Value Incr(Value[] args)
+    {
+        if (args.Length != 1)
+        {
+            return new ErrorValue
+            {
+                Value = "Wrong number of arguments for the \"incr\" command."
+            };
+        }
+
+        var (bulkArgs, error) = VerifyArguments(args);
+        if (error is not null)
+        {
+            return error;
+        }
+
+        if (!_sets.TryGetValue(bulkArgs[0].Value, out var value)
+            || !int.TryParse(value, out var current))
+        {
+            SetCustom("1");
+
+            return new IntegerValue
+            {
+                Value = 1
+            };
+        }
+
+        var incremented = current + 1;
+        SetCustom(incremented.ToString());
+
+        return new IntegerValue
+        {
+            Value = incremented
+        };
+
+        void SetCustom(string value)
+        {
+            BulkValue[] args = [
+                bulkArgs[0],
+                new()
+                {
+                    Value = value
+                }
+            ];
+
+            Set(args);
+        }
     }
 
     private static (BulkValue[], ErrorValue?) VerifyArguments(Value[] args)
