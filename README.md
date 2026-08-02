@@ -10,6 +10,8 @@ Small [RESP2](https://redis.io/docs/latest/develop/reference/protocol-spec/)-com
 * STRLEN
 * INCR
 * INCRBY
+* EXISTS
+* HEXISTS
 
 Sharpis supports concurrent access from multiple clients.
 
