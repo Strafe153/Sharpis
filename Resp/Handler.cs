@@ -18,7 +18,9 @@ public static class Handler
             { Commands.HGetAll, HgetAll },
             { Commands.StrLen, StrLen },
             { Commands.Incr, Incr },
-            { Commands.IncrBy, IncrBy }
+            { Commands.IncrBy, IncrBy },
+            { Commands.Exists, Exists },
+            { Commands.HExists, Hexists },
         };
 
     public static Dictionary<string, Func<Value[], Value>> Handlers => _handlers;
@@ -309,6 +311,60 @@ public static class Handler
 
             Set(args);
         }
+    }
+
+    private static Value Exists(Value[] args)
+    {
+        if (args.Length != 1)
+        {
+            return new ErrorValue
+            {
+                Value = "Wrong number of arguments for the \"exists\" command."
+            };
+        }
+
+        var (bulkArgs, error) = VerifyArguments(args);
+        if (error is not null)
+        {
+            return error;
+        }
+
+        var exists = _sets.TryGetValue(bulkArgs[0].Value, out _) ? 1 : 0;
+
+        return new IntegerValue
+        {
+            Value = exists
+        };
+    }
+
+    private static Value Hexists(Value[] args)
+    {
+        if (args.Length != 2)
+        {
+            return new ErrorValue
+            {
+                Value = "Wrong number of arguments for the \"hexists\" command."
+            };
+        }
+
+        var (bulkArgs, error) = VerifyArguments(args);
+        if (error is not null)
+        {
+            return error;
+        }
+
+        var exists = 1;
+
+        if (!_hSets.TryGetValue(bulkArgs[0].Value, out var set)
+            || !set.TryGetValue(bulkArgs[1].Value, out _))
+        {
+            exists = 0;
+        }
+
+        return new IntegerValue
+        {
+            Value = exists
+        };
     }
 
     private static (BulkValue[], ErrorValue?) VerifyArguments(Value[] args)

@@ -1,6 +1,6 @@
 namespace Sharpis.Resp;
 
-public static class Commands
+public struct Commands
 {
     public const string Ping = "ping";
     public const string Set = "set";
@@ -11,6 +11,8 @@ public static class Commands
     public const string StrLen = "strlen";
     public const string Incr = "incr";
     public const string IncrBy = "incrby";
+    public const string Exists = "exists";
+    public const string HExists = "hexists";
 
     public static bool IsModification(string key)
     {
