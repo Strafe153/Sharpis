@@ -23,7 +23,7 @@ try
     while (!tokenSrc.IsCancellationRequested)
     {
         var client = await listener.AcceptTcpClientAsync(tokenSrc.Token);
-        _ = HandleClient(client, aof, tokenSrc.Token);
+        _ = HandleClientAsync(client, aof, tokenSrc.Token);
     }
 }
 catch (Exception ex) when (ex is OperationCanceledException or TaskCanceledException)
@@ -77,7 +77,7 @@ Task ReadAofAsync(AppendOnlyFile file, CancellationToken token)
     }, token);
 }
 
-async Task HandleClient(TcpClient client, AppendOnlyFile appendOnlyFile, CancellationToken token)
+async Task HandleClientAsync(TcpClient client, AppendOnlyFile appendOnlyFile, CancellationToken token)
 {
     try
     {
